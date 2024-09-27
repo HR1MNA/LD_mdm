@@ -18,7 +18,7 @@ get_system_volume() {
 # Obtener el nombre del volumen del sistema
 system_volume=$(get_system_volume)
 
-# Si no se puede detectar, usar un valor predeterminado
+# Si no se puede detectar, usar "Macintosh HD" como valor predeterminado
 if [ -z "$system_volume" ]; then
     system_volume="Macintosh HD"
 fi
@@ -33,15 +33,18 @@ options=("Bypass MDM desde Recovery" "Deshabilitar Notificaciones (SIP)" "Deshab
 select opt in "${options[@]}"; do
     case $opt in
         "Bypass MDM desde Recovery")
-            # Bypass MDM desde Recovery
             echo -e "${YEL}Bypass MDM desde Recovery${NC}"
+            # Verificar si la partición de datos está montada como "Macintosh HD - Data"
             if [ -d "/Volumes/$system_volume - Data" ]; then
                 diskutil rename "$system_volume - Data" "Data"
             fi
 
             # Verificar si la ruta de usuarios existe
-            if [ ! -d "/Volumes/Data/private/var/db/dslocal/nodes/Default" ]; then
-                echo -e "${RED}La ruta /Volumes/Data/private/var/db/dslocal/nodes/Default no existe.${NC}"
+            dscl_path="/Volumes/Macintosh HD/private/var/db/dslocal/nodes/Default"
+            if [ -d "$dscl_path" ]; then
+                echo -e "${GRN}Ruta encontrada: $dscl_path${NC}"
+            else
+                echo -e "${RED}La ruta $dscl_path no existe.${NC}"
                 exit 1
             fi
 
@@ -55,39 +58,44 @@ select opt in "${options[@]}"; do
             passw="${passw:=1234}"
 
             # Crear el usuario temporal
-            dscl_path='/Volumes/Data/private/var/db/dslocal/nodes/Default'
             echo -e "${GRN}Creando el usuario temporal...${NC}"
             dscl -f "$dscl_path" localhost -create "/Local/Default/Users/$username"
             dscl -f "$dscl_path" localhost -create "/Local/Default/Users/$username" UserShell "/bin/zsh"
             dscl -f "$dscl_path" localhost -create "/Local/Default/Users/$username" RealName "$realName"
             dscl -f "$dscl_path" localhost -create "/Local/Default/Users/$username" UniqueID "501"
             dscl -f "$dscl_path" localhost -create "/Local/Default/Users/$username" PrimaryGroupID "20"
-            mkdir "/Volumes/Data/Users/$username"
+            mkdir "/Volumes/Macintosh HD/Users/$username"
             dscl -f "$dscl_path" localhost -create "/Local/Default/Users/$username" NFSHomeDirectory "/Users/$username"
             dscl -f "$dscl_path" localhost -passwd "/Local/Default/Users/$username" "$passw"
             dscl -f "$dscl_path" localhost -append "/Local/Default/Groups/admin" GroupMembership $username
 
-            # Bloquear dominios MDM
-            if [ -f "/Volumes/$system_volume/etc/hosts" ]; then
-                echo "0.0.0.0 deviceenrollment.apple.com" >>/Volumes/"$system_volume"/etc/hosts
-                echo "0.0.0.0 mdmenrollment.apple.com" >>/Volumes/"$system_volume"/etc/hosts
-                echo "0.0.0.0 iprofiles.apple.com" >>/Volumes/"$system_volume"/etc/hosts
-                echo -e "${GRN}Dominios MDM bloqueados exitosamente${NC}"
-            else
-                echo -e "${RED}No se encontró el archivo /etc/hosts en $system_volume.${NC}"
-            fi
+            # Bloquear dominios MDM en /etc/hosts
+            echo "Bloqueando dominios MDM en /etc/hosts..."
+            sudo sed -i '' '/# MDM Servers/d' /Volumes/Macintosh\ HD/etc/hosts
+            sudo sed -i '' '/# End/d' /Volumes/Macintosh\ HD/etc/hosts
+            sudo sed -i '' '/deviceenrollment.apple.com/d' /Volumes/Macintosh\ HD/etc/hosts
+            sudo sed -i '' '/mdmenrollment.apple.com/d' /Volumes/Macintosh\ HD/etc/hosts
+            sudo sed -i '' '/iprofiles.apple.com/d' /Volumes/Macintosh\ HD/etc/hosts
+            sudo sed -i '' '/acmdm.apple.com/d' /Volumes/Macintosh\ HD/etc/hosts
+            sudo sed -i '' '/axm-adm-mdm.apple.com/d' /Volumes/Macintosh\ HD/etc/hosts
+
+            echo "# MDM Servers" | sudo tee -a /Volumes/Macintosh\ HD/etc/hosts
+            echo "0.0.0.0 deviceenrollment.apple.com" | sudo tee -a /Volumes/Macintosh\ HD/etc/hosts
+            echo "0.0.0.0 mdmenrollment.apple.com" | sudo tee -a /Volumes/Macintosh\ HD/etc/hosts
+            echo "0.0.0.0 iprofiles.apple.com" | sudo tee -a /Volumes/Macintosh\ HD/etc/hosts
+            echo "0.0.0.0 acmdm.apple.com" | sudo tee -a /Volumes/Macintosh\ HD/etc/hosts
+            echo "0.0.0.0 axm-adm-mdm.apple.com" | sudo tee -a /Volumes/Macintosh\ HD/etc/hosts
+            echo "# End" | sudo tee -a /Volumes/Macintosh\ HD/etc/hosts
+            echo -e "${GRN}Dominios MDM bloqueados exitosamente${NC}"
 
             # Eliminar perfiles de configuración
-            if [ -d "/Volumes/$system_volume/var/db/ConfigurationProfiles/Settings/" ]; then
-                touch /Volumes/Data/private/var/db/.AppleSetupDone
-                rm -rf /Volumes/"$system_volume"/var/db/ConfigurationProfiles/Settings/.cloudConfigHasActivationRecord
-                rm -rf /Volumes/"$system_volume"/var/db/ConfigurationProfiles/Settings/.cloudConfigRecordFound
-                touch /Volumes/"$system_volume"/var/db/ConfigurationProfiles/Settings/.cloudConfigProfileInstalled
-                touch /Volumes/"$system_volume"/var/db/ConfigurationProfiles/Settings/.cloudConfigRecordNotFound
-                echo -e "${GRN}Perfiles de configuración eliminados exitosamente.${NC}"
-            else
-                echo -e "${RED}No se encontró la ruta de configuración MDM en $system_volume.${NC}"
-            fi
+            echo "Eliminando perfiles de configuración..."
+            touch /Volumes/Macintosh\ HD/private/var/db/.AppleSetupDone
+            rm -rf /Volumes/Macintosh\ HD/var/db/ConfigurationProfiles/Settings/.cloudConfigHasActivationRecord
+            rm -rf /Volumes/Macintosh\ HD/var/db/ConfigurationProfiles/Settings/.cloudConfigRecordFound
+            touch /Volumes/Macintosh\ HD/var/db/ConfigurationProfiles/Settings/.cloudConfigProfileInstalled
+            touch /Volumes/Macintosh\ HD/var/db/ConfigurationProfiles/Settings/.cloudConfigRecordNotFound
+            echo -e "${GRN}Perfiles de configuración eliminados exitosamente.${NC}"
 
             echo -e "${GRN}El MDM ha sido evitado exitosamente!${NC}"
             echo -e "${NC}Cierra la terminal y reinicia tu Mac.${NC}"
@@ -97,35 +105,26 @@ select opt in "${options[@]}"; do
         "Deshabilitar Notificaciones (SIP)")
             # Deshabilitar notificaciones (SIP)
             echo -e "${RED}Introduce tu contraseña para proceder${NC}"
-            if [ -d "/var/db/ConfigurationProfiles/Settings/" ]; then
-                sudo rm /var/db/ConfigurationProfiles/Settings/.cloudConfigHasActivationRecord
-                sudo rm /var/db/ConfigurationProfiles/Settings/.cloudConfigRecordFound
-                sudo touch /var/db/ConfigurationProfiles/Settings/.cloudConfigProfileInstalled
-                sudo touch /var/db/ConfigurationProfiles/Settings/.cloudConfigRecordNotFound
-                echo -e "${GRN}Notificaciones deshabilitadas exitosamente (SIP)${NC}"
-            else
-                echo -e "${RED}No se encontró la ruta de notificaciones en /var/db/ConfigurationProfiles/Settings/.${NC}"
-            fi
+            sudo rm /var/db/ConfigurationProfiles/Settings/.cloudConfigHasActivationRecord
+            sudo rm /var/db/ConfigurationProfiles/Settings/.cloudConfigRecordFound
+            sudo touch /var/db/ConfigurationProfiles/Settings/.cloudConfigProfileInstalled
+            sudo touch /var/db/ConfigurationProfiles/Settings/.cloudConfigRecordNotFound
+            echo -e "${GRN}Notificaciones deshabilitadas exitosamente (SIP)${NC}"
             break
             ;;
 
         "Deshabilitar Notificaciones (Recovery)")
             # Deshabilitar notificaciones desde Recovery
-            if [ -d "/Volumes/$system_volume/var/db/ConfigurationProfiles/Settings/" ]; then
-                rm -rf /Volumes/"$system_volume"/var/db/ConfigurationProfiles/Settings/.cloudConfigHasActivationRecord
-                rm -rf /Volumes/"$system_volume"/var/db/ConfigurationProfiles/Settings/.cloudConfigRecordFound
-                touch /Volumes/"$system_volume"/var/db/ConfigurationProfiles/Settings/.cloudConfigProfileInstalled
-                touch /Volumes/"$system_volume"/var/db/ConfigurationProfiles/Settings/.cloudConfigRecordNotFound
-                echo -e "${GRN}Notificaciones deshabilitadas exitosamente desde Recovery${NC}"
-            else
-                echo -e "${RED}No se encontró la ruta de configuración en Recovery.${NC}"
-            fi
+            rm -rf /Volumes/Macintosh\ HD/var/db/ConfigurationProfiles/Settings/.cloudConfigHasActivationRecord
+            rm -rf /Volumes/Macintosh\ HD/var/db/ConfigurationProfiles/Settings/.cloudConfigRecordFound
+            touch /Volumes/Macintosh\ HD/var/db/ConfigurationProfiles/Settings/.cloudConfigProfileInstalled
+            touch /Volumes/Macintosh\ HD/var/db/ConfigurationProfiles/Settings/.cloudConfigRecordNotFound
+            echo -e "${GRN}Notificaciones deshabilitadas exitosamente desde Recovery${NC}"
             break
             ;;
 
         "Verificar inscripción en MDM")
             # Verificar la inscripción en MDM
-            echo ""
             echo -e "${GRN}Verificación de inscripción en MDM${NC}"
             sudo profiles show -type enrollment
             break
@@ -141,30 +140,23 @@ select opt in "${options[@]}"; do
             sudo tee "$bloque_script" > /dev/null << EOF
 #!/bin/bash
 
-# Función para obtener el nombre del volumen del sistema
-get_system_volume() {
-    system_volume=\$(diskutil info / | grep "Device Node" | awk -F': ' '{print \$2}' | xargs diskutil info | grep "Volume Name" | awk -F': ' '{print \$2}' | tr -d ' ')
-    echo "\$system_volume"
-}
+# Bloquear dominios MDM en /etc/hosts
+echo "Bloqueando dominios MDM en /etc/hosts..."
+sudo sed -i '' '/# MDM Servers/d' /etc/hosts
+sudo sed -i '' '/# End/d' /etc/hosts
+sudo sed -i '' '/deviceenrollment.apple.com/d' /etc/hosts
+sudo sed -i '' '/mdmenrollment.apple.com/d' /etc/hosts
+sudo sed -i '' '/iprofiles.apple.com/d' /etc/hosts
+sudo sed -i '' '/acmdm.apple.com/d' /etc/hosts
+sudo sed -i '' '/axm-adm-mdm.apple.com/d' /etc/hosts
 
-# Obtener el nombre del volumen del sistema
-system_volume=\$(get_system_volume)
-
-# Si no se puede detectar, usar un valor predeterminado
-if [ -z "\$system_volume" ]; then
-    system_volume="Macintosh HD"
-fi
-
-# Bloquear dominios MDM
-echo "0.0.0.0 deviceenrollment.apple.com" | sudo tee -a /etc/hosts > /dev/null
-echo "0.0.0.0 mdmenrollment.apple.com" | sudo tee -a /etc/hosts > /dev/null
-echo "0.0.0.0 iprofiles.apple.com" | sudo tee -a /etc/hosts > /dev/null
-
-# Eliminar perfiles de configuración si existen
-sudo rm -rf /var/db/ConfigurationProfiles/Settings/.cloudConfigHasActivationRecord
-sudo rm -rf /var/db/ConfigurationProfiles/Settings/.cloudConfigRecordFound
-sudo touch /var/db/ConfigurationProfiles/Settings/.cloudConfigProfileInstalled
-sudo touch /var/db/ConfigurationProfiles/Settings/.cloudConfigRecordNotFound
+echo "# MDM Servers" | sudo tee -a /etc/hosts
+echo "0.0.0.0 deviceenrollment.apple.com" | sudo tee -a /etc/hosts
+echo "0.0.0.0 mdmenrollment.apple.com" | sudo tee -a /etc/hosts
+echo "0.0.0.0 iprofiles.apple.com" | sudo tee -a /etc/hosts
+echo "0.0.0.0 acmdm.apple.com" | sudo tee -a /etc/hosts
+echo "0.0.0.0 axm-adm-mdm.apple.com" | sudo tee -a /etc/hosts
+echo "# End" | sudo tee -a /etc/hosts
 EOF
 
             sudo chmod +x "$bloque_script"
@@ -215,7 +207,6 @@ EOF
             ;;
 
         "Reiniciar y Salir")
-            # Reiniciar el sistema
             echo "Reiniciando..."
             reboot
             break
