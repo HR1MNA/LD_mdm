@@ -1,144 +1,133 @@
 #!/bin/bash
 
-# Definir códigos de color
-RED='\033[1;31m'
-GRN='\033[1;32m'
-BLU='\033[1;34m'
-YEL='\033[1;33m'
-PUR='\033[1;35m'
-CYAN='\033[1;36m'
-NC='\033[0m'
+# Global Constants
+readonly DEFAULT_SYSTEM_VOLUME="Macintosh HD"
 
-# Mostrar encabezado
-echo -e "${CYAN}MDM & Notification Management Script by Assaf Dori & HR1MNA${NC}"
-echo ""
+readonly DEFAULT_USER_FULL_NAME="EightAugusto"
+readonly DEFAULT_USER_NAME="EightAugusto"
+readonly DEFAULT_USER_PASSWORD=""
 
-# Función para mostrar el menú de nuevo
-mostrar_menu() {
-    PS3='Por favor, elige una opción: '
-    options=("Bypass MDM desde Recovery" "Deshabilitar Notificaciones (SIP)" "Deshabilitar Notificaciones (Recovery)" "Verificar inscripción en MDM" "Configurar Launch Daemon para Bloqueo Permanente" "Reiniciar y Salir")
-    select opt in "${options[@]}"; do
-        case $opt in
-            "Bypass MDM desde Recovery")
-                echo -e "${YEL}Bypass MDM desde Recovery${NC}"
-                system_volume="/Volumes/macOS Base System"
+readonly APPLE_MDM_DOMAINS=("deviceenrollment.apple.com" "mdmenrollment.apple.com" "iprofiles.apple.com")
 
-                # Verificar si la partición de datos está montada
-                if [ -d "$system_volume - Data" ]; then
-                    diskutil rename "$system_volume - Data" "Data"
-                fi
+check_volume_existence() {
+  local VOLUME_LABEL="$*"
+  diskutil info "${VOLUME_LABEL}" >/dev/null 2>&1
+}
 
-                # Verificar si la carpeta de usuario ya existe
-                if [ ! -d "$system_volume/Users/Apple" ]; then
-                    mkdir "$system_volume/Users/Apple"
-                else
-                    echo -e "${YEL}El directorio $system_volume/Users/Apple ya existe.${NC}"
-                fi
+get_volume_name() {
+  local VOLUME_TYPE=${1}
 
-                # Bloquear dominios MDM en /etc/hosts
-                echo "Bloqueando dominios MDM en /etc/hosts..."
-                if ! grep -q "deviceenrollment.apple.com" "$system_volume/etc/hosts"; then
-                    echo "0.0.0.0 deviceenrollment.apple.com" >> "$system_volume/etc/hosts"
-                fi
-                if ! grep -q "mdmenrollment.apple.com" "$system_volume/etc/hosts"; then
-                    echo "0.0.0.0 mdmenrollment.apple.com" >> "$system_volume/etc/hosts"
-                fi
-                if ! grep -q "iprofiles.apple.com" "$system_volume/etc/hosts"; then
-                    echo "0.0.0.0 iprofiles.apple.com" >> "$system_volume/etc/hosts"
-                fi
-                if ! grep -q "acmdm.apple.com" "$system_volume/etc/hosts"; then
-                    echo "0.0.0.0 acmdm.apple.com" >> "$system_volume/etc/hosts"
-                fi
-                if ! grep -q "axm-adm-mdm.apple.com" "$system_volume/etc/hosts"; then
-                    echo "0.0.0.0 axm-adm-mdm.apple.com" >> "$system_volume/etc/hosts"
-                fi
+  # Getting the APFS Container Disk Identifier
+  APFS_CONTAINER=$(diskutil list internal physical | grep 'Container' | awk -F'Container ' '{print $2}' | awk '{print $1}')
+  # Getting the Volume Information
+  VOLUME_INFO=$(diskutil ap list "${APFS_CONTAINER}" | grep -A 5 "($VOLUME_TYPE)")
+  # Extracting the Volume Name from the Volume Information
+  VOLUME_NAME_LINE=$(echo "${VOLUME_INFO}" | grep 'Name:')
+  # Removing unnecessary characters to get the clean Volume Name
+  VOLUME_NAME=$(echo "${VOLUME_NAME_LINE}" | cut -d':' -f2 | cut -d'(' -f1 | xargs)
 
-                echo -e "${GRN}Dominios MDM bloqueados exitosamente${NC}"
+  echo ${VOLUME_NAME}
+}
 
-                # Eliminar perfiles de configuración
-                echo "Eliminando perfiles de configuración..."
-                touch "$system_volume/private/var/db/.AppleSetupDone"
-                rm -rf "$system_volume/var/db/ConfigurationProfiles/Settings/.cloudConfigHasActivationRecord"
-                rm -rf "$system_volume/var/db/ConfigurationProfiles/Settings/.cloudConfigRecordFound"
-                touch "$system_volume/var/db/ConfigurationProfiles/Settings/.cloudConfigProfileInstalled"
-                touch "$system_volume/var/db/ConfigurationProfiles/Settings/.cloudConfigRecordNotFound"
-                echo -e "${GRN}Perfiles de configuración eliminados exitosamente.${NC}"
+get_volume_path() {
+  local DEFAULT_VOLUME=${1}
+  local VOLUME_TYPE=${2}
 
-                echo -e "${GRN}El MDM ha sido evitado exitosamente!${NC}"
-                mostrar_menu # Volver a mostrar el menú
-                ;;
+  if check_volume_existence "${DEFAULT_VOLUME}"; then
+    echo "/Volumes/${DEFAULT_VOLUME}"
+  else
+    local VOLUME_NAME
+    VOLUME_NAME="$(get_volume_name "${VOLUME_TYPE}")"
+    echo "/Volumes/${VOLUME_NAME}"
+  fi
+}
 
-            "Deshabilitar Notificaciones (SIP)")
-                echo -e "${RED}Introduce tu contraseña para proceder${NC}"
-                rm /var/db/ConfigurationProfiles/Settings/.cloudConfigHasActivationRecord
-                rm /var/db/ConfigurationProfiles/Settings/.cloudConfigRecordFound
-                touch /var/db/ConfigurationProfiles/Settings/.cloudConfigProfileInstalled
-                touch /var/db/ConfigurationProfiles/Settings/.cloudConfigRecordNotFound
-                echo -e "${GRN}Notificaciones deshabilitadas exitosamente (SIP)${NC}"
-                mostrar_menu # Volver a mostrar el menú
-                ;;
+mount_volume() {
+  local VOLUME_PATH=${1}
+  if [ ! -d ${VOLUME_PATH} ]; then
+    diskutil mount ${VOLUME_PATH}
+  fi
+}
 
-            "Deshabilitar Notificaciones (Recovery)")
-                rm -rf "$system_volume/var/db/ConfigurationProfiles/Settings/.cloudConfigHasActivationRecord"
-                rm -rf "$system_volume/var/db/ConfigurationProfiles/Settings/.cloudConfigRecordFound"
-                touch "$system_volume/var/db/ConfigurationProfiles/Settings/.cloudConfigProfileInstalled"
-                touch "$system_volume/var/db/ConfigurationProfiles/Settings/.cloudConfigRecordNotFound"
-                echo -e "${GRN}Notificaciones deshabilitadas exitosamente desde Recovery${NC}"
-                mostrar_menu # Volver a mostrar el menú
-                ;;
+PS3="Please enter your choice: "
+OPTIONS=("Mac MDM Bypass" "Check MDM Enrollment" "Reboot" "Exit")
+select OPTION in "${OPTIONS[@]}"; do
+  case ${OPTION} in
+  "Mac MDM Bypass")
+    # Get and mount
+    read -rp "System volume name (Default '${DEFAULT_SYSTEM_VOLUME}'): " SYSTEM_VOLUME_NAME
+    SYSTEM_VOLUME_NAME="${SYSTEM_VOLUME_NAME:=${DEFAULT_SYSTEM_VOLUME}}"
+    SYSTEM_VOLUME_PATH=$(get_volume_path "${SYSTEM_VOLUME_NAME}" "System")
+    echo "Mounting system volume '${SYSTEM_VOLUME_NAME}' in path '${SYSTEM_VOLUME_PATH}'"
+    mount_volume ${SYSTEM_VOLUME_PATH}
+    read -rp "Data volume name (Default '${DEFAULT_SYSTEM_VOLUME} - Data'): " DATA_VOLUME_NAME
+    DATA_VOLUME_NAME="${DATA_VOLUME_NAME:="${DEFAULT_SYSTEM_VOLUME} - Data"}"
+    DATA_VOLUME_PATH=$(get_volume_path "${DEFAULT_DATA_VOLUME}" "Data")
+    echo "Mounting data volume '${SYSTEM_VOLUME_NAME}' in path '${SYSTEM_VOLUME_PATH}'"
+    mount_volume ${DATA_VOLUME_PATH}
 
-            "Verificar inscripción en MDM")
-                # Se elimina el uso de 'profiles' ya que no está disponible
-                echo -e "${YEL}El comando 'profiles' no está disponible en este entorno.${NC}"
-                mostrar_menu # Volver a mostrar el menú
-                ;;
+    echo "Checking user existence"
+    DSCL_PATH="${DATA_VOLUME_PATH}/private/var/db/dslocal/nodes/Default"
+    LOCAL_USER_PATH="/Local/Default/Users"
+    DEFAULT_USER_UID="501"
+    if ! dscl -f "${DSCL_PATH}" localhost -list "${LOCAL_USER_PATH}" UniqueID | grep -q "\<${DEFAULT_USER_UID}\>"; then
+      # Get user information
+      echo "Provide new user information"
+      read -rp "Full name (Default '${DEFAULT_USER_FULL_NAME}'): " USER_FULL_NAME
+      USER_FULL_NAME="${USER_FULL_NAME:=${DEFAULT_USER_FULL_NAME}}"
+      read -rp "User name (Default '${DEFAULT_USER_NAME}'): " USER_NAME
+      USER_NAME="${username:=${DEFAULT_USER_NAME}}"
+      read -rp "Password: '${DEFAULT_USER_PASSWORD}'" USER_PASSWORD
+      USER_PASSWORD="${USER_PASSWORD:=${DEFAULT_USER_PASSWORD}}"
 
-            "Configurar Launch Daemon para Bloqueo Permanente")
-                if [ ! -d "/usr/local/bin" ]; then
-                    echo "Creando el directorio /usr/local/bin"
-                    mkdir -p /usr/local/bin
-                fi
+      # Create the user
+      echo "Creating user '${USER_NAME}' path '${DATA_VOLUME_PATH}/Users/${USER_NAME}' for '${USER_FULL_NAME}'"
+      dscl -f "${DSCL_PATH}" localhost -create "${LOCAL_USER_PATH}/${USER_NAME}"
+      dscl -f "${DSCL_PATH}" localhost -create "${LOCAL_USER_PATH}/${USER_NAME}" UserShell "/bin/zsh"
+      dscl -f "${DSCL_PATH}" localhost -create "${LOCAL_USER_PATH}/${USER_NAME}" RealName "${USER_FULL_NAME}"
+      dscl -f "${DSCL_PATH}" localhost -create "${LOCAL_USER_PATH}/${USER_NAME}" UniqueID "${DEFAULT_USER_UID}"
+      dscl -f "${DSCL_PATH}" localhost -create "${LOCAL_USER_PATH}/${USER_NAME}" PrimaryGroupID "20"
+      mkdir "${DATA_VOLUME_PATH}/Users/${USER_NAME}"
+      dscl -f "${DSCL_PATH}" localhost -create "${LOCAL_USER_PATH}/${USER_NAME}" NFSHomeDirectory "/Users/${USER_NAME}"
+      dscl -f "${DSCL_PATH}" localhost -passwd "${LOCAL_USER_PATH}/${USER_NAME}" "${USER_PASSWORD}"
+      dscl -f "${DSCL_PATH}" localhost -append "/Local/Default/Groups/admin" GroupMembership "${USER_NAME}"
+    else
+      echo "User already exist"
+    fi
 
-                bloque_script="/usr/local/bin/bloquear_mdm.sh"
-                echo -e "${GRN}Creando el script de bloqueo en $bloque_script${NC}"
-                tee "$bloque_script" > /dev/null << EOF
-#!/bin/bash
+    # Block MDM hosts
+    echo "Blocking MDM hosts"
+    HOST_PATH="${SYSTEM_VOLUME_PATH}/etc/hosts"
+    for DOMAIN in "${APPLE_MDM_DOMAINS[@]}"; do
+      echo "0.0.0.0 ${DOMAIN}" >> ${HOST_PATH}
+    done
+    echo "Successfully blocked hosts"
 
-system_volume="/Volumes/macOS Base System"
-echo "Bloqueando dominios MDM en /etc/hosts..."
-if ! grep -q "deviceenrollment.apple.com" "\$system_volume/etc/hosts"; then
-    echo "0.0.0.0 deviceenrollment.apple.com" >> "\$system_volume/etc/hosts"
-fi
-if ! grep -q "mdmenrollment.apple.com" "\$system_volume/etc/hosts"; then
-    echo "0.0.0.0 mdmenrollment.apple.com" >> "\$system_volume/etc/hosts"
-fi
-if ! grep -q "iprofiles.apple.com" "\$system_volume/etc/hosts"; then
-    echo "0.0.0.0 iprofiles.apple.com" >> "\$system_volume/etc/hosts"
-fi
-if ! grep -q "acmdm.apple.com" "\$system_volume/etc/hosts"; then
-    echo "0.0.0.0 acmdm.apple.com" >> "\$system_volume/etc/hosts"
-fi
-if ! grep -q "axm-adm-mdm.apple.com" "\$system_volume/etc/hosts"; then
-    echo "0.0.0.0 axm-adm-mdm.apple.com" >> "\$system_volume/etc/hosts"
-fi
-EOF
+    # Remove configuration profiles
+    echo "Remove configuration profiles"
+    CONFIGURATION_PROFILES_PATH="${SYSTEM_VOLUME_PATH}/var/db/ConfigurationProfiles/Settings"
+    touch "${DATA_VOLUME_PATH}/private/var/db/.AppleSetupDone"
+    rm -rf "${CONFIGURATION_PROFILES_PATH}/.cloudConfigHasActivationRecord"
+    rm -rf "${CONFIGURATION_PROFILES_PATH}/.cloudConfigRecordFound"
+    touch "${CONFIGURATION_PROFILES_PATH}/.cloudConfigProfileInstalled"
+    touch "${CONFIGURATION_PROFILES_PATH}/.cloudConfigRecordNotFound"
+    echo "Configuration profiles removed"
 
-                chmod +x "$bloque_script"
+    echo "Mac MDM Bypass finished"
+    break
+    ;;
+    
+  "Check MDM Enrollment")
+    if [ ! -f /usr/bin/profiles ]; then echo "Check MDM Enrollment should not be executed in recovery mode"; continue; fi
+    if ! sudo profiles show -type enrollment >/dev/null 2>&1; then echo "Not enrolled";
+    else echo "Enrolled"; fi
+    ;;
 
-                plist_file="/Library/LaunchDaemons/com.usuario.bloquear_mdm.plist"
-                echo -e "${GRN}Creando el archivo plist para el Launch Daemon en $plist_file${NC}"
-                tee "$plist_file" > /dev/null << EOF
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-  <dict>
-    <key>Label</key>
-    <string>com.usuario.bloquear_mdm</string>
+  "Reboot") echo "Rebooting"; reboot;;
 
-    <key>ProgramArguments</key>
-    <array>
-      <string>/bin/bash</string>
-      <string>$bloque_script</string>
-    </array>
+  "Exit") echo "Exiting"; exit;;
 
-    <
+  *) echo "Invalid option: '${REPLY}'";;
+
+  esac
+done
