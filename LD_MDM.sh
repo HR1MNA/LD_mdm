@@ -115,11 +115,22 @@ select opt in "${options[@]}"; do
             # Crear el script de bloqueo
             bloque_script="/usr/local/bin/bloquear_mdm.sh"
             echo -e "${GRN}Creando el script de bloqueo en $bloque_script${NC}"
-            sudo tee "$bloque_script" > /dev/null << 'EOF'
+            sudo tee "$bloque_script" > /dev/null << EOF
 #!/bin/bash
 
-# Nombre del volumen del sistema
-SYSTEM_VOLUME="Macintosh HD"
+# Función para obtener el nombre del volumen del sistema
+get_system_volume() {
+    system_volume=\$(diskutil info / | grep "Device Node" | awk -F': ' '{print \$2}' | xargs diskutil info | grep "Volume Name" | awk -F': ' '{print \$2}' | tr -d ' ')
+    echo "\$system_volume"
+}
+
+# Obtener el nombre del volumen del sistema
+system_volume=\$(get_system_volume)
+
+# Si no se puede detectar, usar un valor predeterminado
+if [ -z "\$system_volume" ]; then
+    system_volume="Macintosh HD"
+fi
 
 # Bloquear dominios MDM
 echo "0.0.0.0 deviceenrollment.apple.com" | sudo tee -a /etc/hosts > /dev/null
@@ -189,6 +200,10 @@ EOF
 
         *) 
             echo "Opción no válida: $REPLY"
+            ;;
+    esac
+done
+
             ;;
     esac
 done
