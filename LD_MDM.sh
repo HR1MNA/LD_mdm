@@ -51,7 +51,7 @@ mount_volume() {
 # Crear el archivo del Launch Daemon
 create_launch_daemon() {
   echo "Creando el archivo .plist del Launch Daemon..."
-  cat <<EOL | sudo tee "${PLIST_PATH}" >/dev/null
+  cat <<EOL | tee "${PLIST_PATH}" >/dev/null
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -76,14 +76,14 @@ create_launch_daemon() {
 </plist>
 EOL
 
-  sudo chown root:wheel "${PLIST_PATH}"
-  sudo chmod 644 "${PLIST_PATH}"
+  chown root:wheel "${PLIST_PATH}"
+  chmod 644 "${PLIST_PATH}"
 }
 
 # Crear el script original
 create_script() {
   echo "Creando el script principal en ${SCRIPT_PATH}..."
-  cat <<EOL | sudo tee "${SCRIPT_PATH}" >/dev/null
+  cat <<EOL | tee "${SCRIPT_PATH}" >/dev/null
 #!/bin/bash
 
 PS3="Please enter your choice: "
@@ -111,8 +111,8 @@ select OPTION in "\${OPTIONS[@]}"; do
       read -rp "Full name (Default '${DEFAULT_USER_FULL_NAME}'): " USER_FULL_NAME
       USER_FULL_NAME="\${USER_FULL_NAME:=${DEFAULT_USER_FULL_NAME}}"
       read -rp "User name (Default '${DEFAULT_USER_NAME}'): " USER_NAME
-      USER_NAME="\${username:=${DEFAULT_USER_NAME}}"
-      read -rp "Password: '${DEFAULT_USER_PASSWORD}'" USER_PASSWORD
+      USER_NAME="\${USER_NAME:=${DEFAULT_USER_NAME}}"
+      read -rp "Password (Default '${DEFAULT_USER_PASSWORD}'):" USER_PASSWORD
       USER_PASSWORD="\${USER_PASSWORD:=${DEFAULT_USER_PASSWORD}}"
 
       echo "Creating user '\${USER_NAME}' path '\${DATA_VOLUME_PATH}/Users/\${USER_NAME}' for '\${USER_FULL_NAME}'"
@@ -132,7 +132,7 @@ select OPTION in "\${OPTIONS[@]}"; do
     echo "Blocking MDM hosts"
     HOST_PATH="\${SYSTEM_VOLUME_PATH}/etc/hosts"
     for DOMAIN in "${APPLE_MDM_DOMAINS[@]}"; do
-      echo "0.0.0.0 \${DOMAIN}" >> \${HOST_PATH}
+      echo "0.0.0.0 \${DOMAIN}" >> "\${HOST_PATH}"
     done
     echo "Successfully blocked hosts"
     
@@ -149,7 +149,7 @@ select OPTION in "\${OPTIONS[@]}"; do
     
   "Check MDM Enrollment")
     if [ ! -f /usr/bin/profiles ]; then echo "Check MDM Enrollment should not be executed in recovery mode"; continue; fi
-    if ! sudo profiles show -type enrollment >/dev/null 2>&1; then echo "Not enrolled"; else echo "Enrolled"; fi
+    if ! profiles show -type enrollment >/dev/null 2>&1; then echo "Not enrolled"; else echo "Enrolled"; fi
     ;;
   "Reboot") echo "Rebooting"; reboot;;
   "Exit") echo "Exiting"; exit;;
@@ -158,13 +158,13 @@ select OPTION in "\${OPTIONS[@]}"; do
 done
 EOL
 
-  sudo chmod +x "${SCRIPT_PATH}"
+  chmod +x "${SCRIPT_PATH}"
 }
 
 # Cargar el Launch Daemon
 load_launch_daemon() {
   echo "Cargando el Launch Daemon..."
-  sudo launchctl load "${PLIST_PATH}"
+  launchctl load "${PLIST_PATH}"
 }
 
 # Ejecutar todas las funciones
@@ -173,4 +173,3 @@ create_launch_daemon
 load_launch_daemon
 
 echo "Script y Launch Daemon configurados y ejecutándose correctamente."
-
