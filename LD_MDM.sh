@@ -98,6 +98,12 @@ select opt in "${options[@]}"; do
             ;;
 
         "Configurar Launch Daemon para Bloqueo Permanente")
+            # Verificar si el directorio /usr/local/bin existe, y crearlo si no
+            if [ ! -d "/usr/local/bin" ]; then
+                echo "Creando el directorio /usr/local/bin"
+                mkdir -p /usr/local/bin
+            fi
+
             # Crear el script de bloqueo de MDM
             bloque_script="/usr/local/bin/bloquear_mdm.sh"
 
