@@ -28,23 +28,31 @@ select opt in "${options[@]}"; do
                 diskutil rename "$system_volume - Data" "Data"
             fi
 
-            # Bloquear dominios MDM en /etc/hosts
-            echo "Bloqueando dominios MDM en /etc/hosts..."
-            sed -i '' '/# MDM Servers/d' "$system_volume/etc/hosts"
-            sed -i '' '/# End/d' "$system_volume/etc/hosts"
-            sed -i '' '/deviceenrollment.apple.com/d' "$system_volume/etc/hosts"
-            sed -i '' '/mdmenrollment.apple.com/d' "$system_volume/etc/hosts"
-            sed -i '' '/iprofiles.apple.com/d' "$system_volume/etc/hosts"
-            sed -i '' '/acmdm.apple.com/d' "$system_volume/etc/hosts"
-            sed -i '' '/axm-adm-mdm.apple.com/d' "$system_volume/etc/hosts"
+            # Verificar si la carpeta de usuario ya existe
+            if [ ! -d "$system_volume/Users/Apple" ]; then
+                mkdir "$system_volume/Users/Apple"
+            else
+                echo -e "${YEL}El directorio $system_volume/Users/Apple ya existe.${NC}"
+            fi
 
-            echo "# MDM Servers" >> "$system_volume/etc/hosts"
-            echo "0.0.0.0 deviceenrollment.apple.com" >> "$system_volume/etc/hosts"
-            echo "0.0.0.0 mdmenrollment.apple.com" >> "$system_volume/etc/hosts"
-            echo "0.0.0.0 iprofiles.apple.com" >> "$system_volume/etc/hosts"
-            echo "0.0.0.0 acmdm.apple.com" >> "$system_volume/etc/hosts"
-            echo "0.0.0.0 axm-adm-mdm.apple.com" >> "$system_volume/etc/hosts"
-            echo "# End" >> "$system_volume/etc/hosts"
+            # Bloquear dominios MDM en /etc/hosts (evitar duplicados)
+            echo "Bloqueando dominios MDM en /etc/hosts..."
+            if ! grep -q "deviceenrollment.apple.com" "$system_volume/etc/hosts"; then
+                echo "0.0.0.0 deviceenrollment.apple.com" >> "$system_volume/etc/hosts"
+            fi
+            if ! grep -q "mdmenrollment.apple.com" "$system_volume/etc/hosts"; then
+                echo "0.0.0.0 mdmenrollment.apple.com" >> "$system_volume/etc/hosts"
+            fi
+            if ! grep -q "iprofiles.apple.com" "$system_volume/etc/hosts"; then
+                echo "0.0.0.0 iprofiles.apple.com" >> "$system_volume/etc/hosts"
+            fi
+            if ! grep -q "acmdm.apple.com" "$system_volume/etc/hosts"; then
+                echo "0.0.0.0 acmdm.apple.com" >> "$system_volume/etc/hosts"
+            fi
+            if ! grep -q "axm-adm-mdm.apple.com" "$system_volume/etc/hosts"; then
+                echo "0.0.0.0 axm-adm-mdm.apple.com" >> "$system_volume/etc/hosts"
+            fi
+
             echo -e "${GRN}Dominios MDM bloqueados exitosamente${NC}"
 
             # Eliminar perfiles de configuración
@@ -104,4 +112,3 @@ select opt in "${options[@]}"; do
             ;;
     esac
 done
-
