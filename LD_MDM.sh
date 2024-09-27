@@ -102,7 +102,7 @@ select opt in "${options[@]}"; do
             bloque_script="/usr/local/bin/bloquear_mdm.sh"
 
             echo -e "${GRN}Creando el script de bloqueo en $bloque_script${NC}"
-            sudo tee "$bloque_script" > /dev/null << EOF
+            tee "$bloque_script" > /dev/null << EOF
 #!/bin/bash
 
 # Ruta del volumen (asegúrate de que esté correcto si cambia)
@@ -127,13 +127,13 @@ if ! grep -q "axm-adm-mdm.apple.com" "\$system_volume/etc/hosts"; then
 fi
 EOF
 
-            sudo chmod +x "$bloque_script"
+            chmod +x "$bloque_script"
 
             # Crear el archivo plist para el Launch Daemon
             plist_file="/Library/LaunchDaemons/com.usuario.bloquear_mdm.plist"
 
             echo -e "${GRN}Creando el archivo plist para el Launch Daemon en $plist_file${NC}"
-            sudo tee "$plist_file" > /dev/null << EOF
+            tee "$plist_file" > /dev/null << EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -163,12 +163,12 @@ EOF
 
             # Establecer permisos adecuados para el plist
             echo -e "${GRN}Estableciendo permisos para el archivo plist${NC}"
-            sudo chown root:wheel "$plist_file"
-            sudo chmod 644 "$plist_file"
+            chown root:wheel "$plist_file"
+            chmod 644 "$plist_file"
 
             # Cargar el Launch Daemon
             echo -e "${GRN}Cargando el Launch Daemon${NC}"
-            sudo launchctl load "$plist_file"
+            launchctl load "$plist_file"
 
             echo -e "${GRN}Launch Daemon configurado y cargado exitosamente.${NC}"
             echo -e "${NC}El script de bloqueo se ejecutará cada hora para mantener bloqueados los dominios MDM.${NC}"
