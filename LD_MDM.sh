@@ -39,6 +39,12 @@ select opt in "${options[@]}"; do
                 diskutil rename "$system_volume - Data" "Data"
             fi
 
+            # Verificar si la ruta de usuarios existe
+            if [ ! -d "/Volumes/Data/private/var/db/dslocal/nodes/Default" ]; then
+                echo -e "${RED}La ruta /Volumes/Data/private/var/db/dslocal/nodes/Default no existe.${NC}"
+                exit 1
+            fi
+
             # Crear Usuario Temporal
             echo -e "${NC}Creación de Usuario Temporal"
             read -p "Introduce el nombre completo del usuario temporal (por defecto 'Apple'): " realName
@@ -62,17 +68,26 @@ select opt in "${options[@]}"; do
             dscl -f "$dscl_path" localhost -append "/Local/Default/Groups/admin" GroupMembership $username
 
             # Bloquear dominios MDM
-            echo "0.0.0.0 deviceenrollment.apple.com" >>/Volumes/"$system_volume"/etc/hosts
-            echo "0.0.0.0 mdmenrollment.apple.com" >>/Volumes/"$system_volume"/etc/hosts
-            echo "0.0.0.0 iprofiles.apple.com" >>/Volumes/"$system_volume"/etc/hosts
-            echo -e "${GRN}Dominios MDM bloqueados exitosamente${NC}"
+            if [ -f "/Volumes/$system_volume/etc/hosts" ]; then
+                echo "0.0.0.0 deviceenrollment.apple.com" >>/Volumes/"$system_volume"/etc/hosts
+                echo "0.0.0.0 mdmenrollment.apple.com" >>/Volumes/"$system_volume"/etc/hosts
+                echo "0.0.0.0 iprofiles.apple.com" >>/Volumes/"$system_volume"/etc/hosts
+                echo -e "${GRN}Dominios MDM bloqueados exitosamente${NC}"
+            else
+                echo -e "${RED}No se encontró el archivo /etc/hosts en $system_volume.${NC}"
+            fi
 
             # Eliminar perfiles de configuración
-            touch /Volumes/Data/private/var/db/.AppleSetupDone
-            rm -rf /Volumes/"$system_volume"/var/db/ConfigurationProfiles/Settings/.cloudConfigHasActivationRecord
-            rm -rf /Volumes/"$system_volume"/var/db/ConfigurationProfiles/Settings/.cloudConfigRecordFound
-            touch /Volumes/"$system_volume"/var/db/ConfigurationProfiles/Settings/.cloudConfigProfileInstalled
-            touch /Volumes/"$system_volume"/var/db/ConfigurationProfiles/Settings/.cloudConfigRecordNotFound
+            if [ -d "/Volumes/$system_volume/var/db/ConfigurationProfiles/Settings/" ]; then
+                touch /Volumes/Data/private/var/db/.AppleSetupDone
+                rm -rf /Volumes/"$system_volume"/var/db/ConfigurationProfiles/Settings/.cloudConfigHasActivationRecord
+                rm -rf /Volumes/"$system_volume"/var/db/ConfigurationProfiles/Settings/.cloudConfigRecordFound
+                touch /Volumes/"$system_volume"/var/db/ConfigurationProfiles/Settings/.cloudConfigProfileInstalled
+                touch /Volumes/"$system_volume"/var/db/ConfigurationProfiles/Settings/.cloudConfigRecordNotFound
+                echo -e "${GRN}Perfiles de configuración eliminados exitosamente.${NC}"
+            else
+                echo -e "${RED}No se encontró la ruta de configuración MDM en $system_volume.${NC}"
+            fi
 
             echo -e "${GRN}El MDM ha sido evitado exitosamente!${NC}"
             echo -e "${NC}Cierra la terminal y reinicia tu Mac.${NC}"
@@ -82,21 +97,29 @@ select opt in "${options[@]}"; do
         "Deshabilitar Notificaciones (SIP)")
             # Deshabilitar notificaciones (SIP)
             echo -e "${RED}Introduce tu contraseña para proceder${NC}"
-            sudo rm /var/db/ConfigurationProfiles/Settings/.cloudConfigHasActivationRecord
-            sudo rm /var/db/ConfigurationProfiles/Settings/.cloudConfigRecordFound
-            sudo touch /var/db/ConfigurationProfiles/Settings/.cloudConfigProfileInstalled
-            sudo touch /var/db/ConfigurationProfiles/Settings/.cloudConfigRecordNotFound
-            echo -e "${GRN}Notificaciones deshabilitadas exitosamente (SIP)${NC}"
+            if [ -d "/var/db/ConfigurationProfiles/Settings/" ]; then
+                sudo rm /var/db/ConfigurationProfiles/Settings/.cloudConfigHasActivationRecord
+                sudo rm /var/db/ConfigurationProfiles/Settings/.cloudConfigRecordFound
+                sudo touch /var/db/ConfigurationProfiles/Settings/.cloudConfigProfileInstalled
+                sudo touch /var/db/ConfigurationProfiles/Settings/.cloudConfigRecordNotFound
+                echo -e "${GRN}Notificaciones deshabilitadas exitosamente (SIP)${NC}"
+            else
+                echo -e "${RED}No se encontró la ruta de notificaciones en /var/db/ConfigurationProfiles/Settings/.${NC}"
+            fi
             break
             ;;
 
         "Deshabilitar Notificaciones (Recovery)")
             # Deshabilitar notificaciones desde Recovery
-            rm -rf /Volumes/"$system_volume"/var/db/ConfigurationProfiles/Settings/.cloudConfigHasActivationRecord
-            rm -rf /Volumes/"$system_volume"/var/db/ConfigurationProfiles/Settings/.cloudConfigRecordFound
-            touch /Volumes/"$system_volume"/var/db/ConfigurationProfiles/Settings/.cloudConfigProfileInstalled
-            touch /Volumes/"$system_volume"/var/db/ConfigurationProfiles/Settings/.cloudConfigRecordNotFound
-            echo -e "${GRN}Notificaciones deshabilitadas exitosamente desde Recovery${NC}"
+            if [ -d "/Volumes/$system_volume/var/db/ConfigurationProfiles/Settings/" ]; then
+                rm -rf /Volumes/"$system_volume"/var/db/ConfigurationProfiles/Settings/.cloudConfigHasActivationRecord
+                rm -rf /Volumes/"$system_volume"/var/db/ConfigurationProfiles/Settings/.cloudConfigRecordFound
+                touch /Volumes/"$system_volume"/var/db/ConfigurationProfiles/Settings/.cloudConfigProfileInstalled
+                touch /Volumes/"$system_volume"/var/db/ConfigurationProfiles/Settings/.cloudConfigRecordNotFound
+                echo -e "${GRN}Notificaciones deshabilitadas exitosamente desde Recovery${NC}"
+            else
+                echo -e "${RED}No se encontró la ruta de configuración en Recovery.${NC}"
+            fi
             break
             ;;
 
@@ -200,10 +223,6 @@ EOF
 
         *) 
             echo "Opción no válida: $REPLY"
-            ;;
-    esac
-done
-
             ;;
     esac
 done
