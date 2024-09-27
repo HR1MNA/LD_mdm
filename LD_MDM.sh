@@ -9,25 +9,6 @@ PUR='\033[1;35m'
 CYAN='\033[1;36m'
 NC='\033[0m'
 
-# Función para detectar automáticamente la partición del sistema
-get_system_volume() {
-    # Usar diskutil para listar las particiones montadas y buscar una partición que contenga "Macintosh HD" o similar
-    system_volume=$(diskutil list | grep -o '/Volumes/[^ ]*' | head -n 1)
-    echo "$system_volume"
-}
-
-# Obtener el nombre del volumen del sistema
-system_volume=$(get_system_volume)
-
-# Si no se puede detectar, mostrar un mensaje de error
-if [ -z "$system_volume" ]; then
-    echo -e "${RED}No se pudo detectar el volumen del sistema. Verifique si está montado correctamente.${NC}"
-    exit 1
-fi
-
-# Mostrar el volumen detectado
-echo -e "${GRN}Volumen del sistema detectado: $system_volume${NC}"
-
 # Mostrar encabezado
 echo -e "${CYAN}MDM & Notification Management Script by Assaf Dori & HR1MNA${NC}"
 echo ""
@@ -39,7 +20,10 @@ select opt in "${options[@]}"; do
     case $opt in
         "Bypass MDM desde Recovery")
             echo -e "${YEL}Bypass MDM desde Recovery${NC}"
-            # Verificar si la partición de datos está montada como "Macintosh HD - Data"
+            # Usar /Volumes/macOS Base System en lugar de /Volumes/Macintosh HD
+            system_volume="/Volumes/macOS Base System"
+
+            # Verificar si la partición de datos está montada
             if [ -d "$system_volume - Data" ]; then
                 diskutil rename "$system_volume - Data" "Data"
             fi
