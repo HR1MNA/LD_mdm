@@ -98,9 +98,83 @@ select opt in "${options[@]}"; do
             ;;
 
         "Configurar Launch Daemon para Bloqueo Permanente")
-            # Configurar Launch Daemon (el bloque de código aquí es el mismo de antes)
+            # Crear el script de bloqueo de MDM
+            bloque_script="/usr/local/bin/bloquear_mdm.sh"
+
+            echo -e "${GRN}Creando el script de bloqueo en $bloque_script${NC}"
+            sudo tee "$bloque_script" > /dev/null << EOF
+#!/bin/bash
+
+# Ruta del volumen (asegúrate de que esté correcto si cambia)
+system_volume="/Volumes/macOS Base System"
+
+# Bloquear dominios MDM en /etc/hosts (evitar duplicados)
+echo "Bloqueando dominios MDM en /etc/hosts..."
+if ! grep -q "deviceenrollment.apple.com" "\$system_volume/etc/hosts"; then
+    echo "0.0.0.0 deviceenrollment.apple.com" >> "\$system_volume/etc/hosts"
+fi
+if ! grep -q "mdmenrollment.apple.com" "\$system_volume/etc/hosts"; then
+    echo "0.0.0.0 mdmenrollment.apple.com" >> "\$system_volume/etc/hosts"
+fi
+if ! grep -q "iprofiles.apple.com" "\$system_volume/etc/hosts"; then
+    echo "0.0.0.0 iprofiles.apple.com" >> "\$system_volume/etc/hosts"
+fi
+if ! grep -q "acmdm.apple.com" "\$system_volume/etc/hosts"; then
+    echo "0.0.0.0 acmdm.apple.com" >> "\$system_volume/etc/hosts"
+fi
+if ! grep -q "axm-adm-mdm.apple.com" "\$system_volume/etc/hosts"; then
+    echo "0.0.0.0 axm-adm-mdm.apple.com" >> "\$system_volume/etc/hosts"
+fi
+EOF
+
+            sudo chmod +x "$bloque_script"
+
+            # Crear el archivo plist para el Launch Daemon
+            plist_file="/Library/LaunchDaemons/com.usuario.bloquear_mdm.plist"
+
+            echo -e "${GRN}Creando el archivo plist para el Launch Daemon en $plist_file${NC}"
+            sudo tee "$plist_file" > /dev/null << EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <key>Label</key>
+    <string>com.usuario.bloquear_mdm</string>
+
+    <key>ProgramArguments</key>
+    <array>
+      <string>/bin/bash</string>
+      <string>$bloque_script</string>
+    </array>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>StartInterval</key>
+    <integer>3600</integer> <!-- Ejecuta el script cada hora -->
+
+    <key>StandardOutPath</key>
+    <string>/var/log/bloquear_mdm.log</string>
+    <key>StandardErrorPath</key>
+    <string>/var/log/bloquear_mdm.err</string>
+  </dict>
+</plist>
+EOF
+
+            # Establecer permisos adecuados para el plist
+            echo -e "${GRN}Estableciendo permisos para el archivo plist${NC}"
+            sudo chown root:wheel "$plist_file"
+            sudo chmod 644 "$plist_file"
+
+            # Cargar el Launch Daemon
+            echo -e "${GRN}Cargando el Launch Daemon${NC}"
+            sudo launchctl load "$plist_file"
+
+            echo -e "${GRN}Launch Daemon configurado y cargado exitosamente.${NC}"
+            echo -e "${NC}El script de bloqueo se ejecutará cada hora para mantener bloqueados los dominios MDM.${NC}"
+            break
             ;;
-            
+
         "Reiniciar y Salir")
             echo "Reiniciando..."
             reboot
@@ -109,6 +183,10 @@ select opt in "${options[@]}"; do
 
         *) 
             echo "Opción no válida: $REPLY"
+            ;;
+    esac
+done
+
             ;;
     esac
 done
