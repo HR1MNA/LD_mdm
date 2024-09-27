@@ -28,53 +28,23 @@ select opt in "${options[@]}"; do
                 diskutil rename "$system_volume - Data" "Data"
             fi
 
-            # Verificar si la ruta de usuarios existe
-            dscl_path="$system_volume/private/var/db/dslocal/nodes/Default"
-            if [ -d "$dscl_path" ]; then
-                echo -e "${GRN}Ruta encontrada: $dscl_path${NC}"
-            else
-                echo -e "${RED}La ruta $dscl_path no existe.${NC}"
-                exit 1
-            fi
-
-            # Crear Usuario Temporal
-            echo -e "${NC}Creación de Usuario Temporal"
-            read -p "Introduce el nombre completo del usuario temporal (por defecto 'Apple'): " realName
-            realName="${realName:=Apple}"
-            read -p "Introduce el nombre de usuario temporal (por defecto 'Apple'): " username
-            username="${username:=Apple}"
-            read -p "Introduce la contraseña temporal (por defecto '1234'): " passw
-            passw="${passw:=1234}"
-
-            # Crear el usuario temporal
-            echo -e "${GRN}Creando el usuario temporal...${NC}"
-            dscl -f "$dscl_path" localhost -create "/Local/Default/Users/$username"
-            dscl -f "$dscl_path" localhost -create "/Local/Default/Users/$username" UserShell "/bin/zsh"
-            dscl -f "$dscl_path" localhost -create "/Local/Default/Users/$username" RealName "$realName"
-            dscl -f "$dscl_path" localhost -create "/Local/Default/Users/$username" UniqueID "501"
-            dscl -f "$dscl_path" localhost -create "/Local/Default/Users/$username" PrimaryGroupID "20"
-            mkdir "$system_volume/Users/$username"
-            dscl -f "$dscl_path" localhost -create "/Local/Default/Users/$username" NFSHomeDirectory "/Users/$username"
-            dscl -f "$dscl_path" localhost -passwd "/Local/Default/Users/$username" "$passw"
-            dscl -f "$dscl_path" localhost -append "/Local/Default/Groups/admin" GroupMembership $username
-
             # Bloquear dominios MDM en /etc/hosts
             echo "Bloqueando dominios MDM en /etc/hosts..."
-            sudo sed -i '' '/# MDM Servers/d' "$system_volume/etc/hosts"
-            sudo sed -i '' '/# End/d' "$system_volume/etc/hosts"
-            sudo sed -i '' '/deviceenrollment.apple.com/d' "$system_volume/etc/hosts"
-            sudo sed -i '' '/mdmenrollment.apple.com/d' "$system_volume/etc/hosts"
-            sudo sed -i '' '/iprofiles.apple.com/d' "$system_volume/etc/hosts"
-            sudo sed -i '' '/acmdm.apple.com/d' "$system_volume/etc/hosts"
-            sudo sed -i '' '/axm-adm-mdm.apple.com/d' "$system_volume/etc/hosts"
+            sed -i '' '/# MDM Servers/d' "$system_volume/etc/hosts"
+            sed -i '' '/# End/d' "$system_volume/etc/hosts"
+            sed -i '' '/deviceenrollment.apple.com/d' "$system_volume/etc/hosts"
+            sed -i '' '/mdmenrollment.apple.com/d' "$system_volume/etc/hosts"
+            sed -i '' '/iprofiles.apple.com/d' "$system_volume/etc/hosts"
+            sed -i '' '/acmdm.apple.com/d' "$system_volume/etc/hosts"
+            sed -i '' '/axm-adm-mdm.apple.com/d' "$system_volume/etc/hosts"
 
-            echo "# MDM Servers" | sudo tee -a "$system_volume/etc/hosts"
-            echo "0.0.0.0 deviceenrollment.apple.com" | sudo tee -a "$system_volume/etc/hosts"
-            echo "0.0.0.0 mdmenrollment.apple.com" | sudo tee -a "$system_volume/etc/hosts"
-            echo "0.0.0.0 iprofiles.apple.com" | sudo tee -a "$system_volume/etc/hosts"
-            echo "0.0.0.0 acmdm.apple.com" | sudo tee -a "$system_volume/etc/hosts"
-            echo "0.0.0.0 axm-adm-mdm.apple.com" | sudo tee -a "$system_volume/etc/hosts"
-            echo "# End" | sudo tee -a "$system_volume/etc/hosts"
+            echo "# MDM Servers" >> "$system_volume/etc/hosts"
+            echo "0.0.0.0 deviceenrollment.apple.com" >> "$system_volume/etc/hosts"
+            echo "0.0.0.0 mdmenrollment.apple.com" >> "$system_volume/etc/hosts"
+            echo "0.0.0.0 iprofiles.apple.com" >> "$system_volume/etc/hosts"
+            echo "0.0.0.0 acmdm.apple.com" >> "$system_volume/etc/hosts"
+            echo "0.0.0.0 axm-adm-mdm.apple.com" >> "$system_volume/etc/hosts"
+            echo "# End" >> "$system_volume/etc/hosts"
             echo -e "${GRN}Dominios MDM bloqueados exitosamente${NC}"
 
             # Eliminar perfiles de configuración
@@ -94,10 +64,10 @@ select opt in "${options[@]}"; do
         "Deshabilitar Notificaciones (SIP)")
             # Deshabilitar notificaciones (SIP)
             echo -e "${RED}Introduce tu contraseña para proceder${NC}"
-            sudo rm /var/db/ConfigurationProfiles/Settings/.cloudConfigHasActivationRecord
-            sudo rm /var/db/ConfigurationProfiles/Settings/.cloudConfigRecordFound
-            sudo touch /var/db/ConfigurationProfiles/Settings/.cloudConfigProfileInstalled
-            sudo touch /var/db/ConfigurationProfiles/Settings/.cloudConfigRecordNotFound
+            rm /var/db/ConfigurationProfiles/Settings/.cloudConfigHasActivationRecord
+            rm /var/db/ConfigurationProfiles/Settings/.cloudConfigRecordFound
+            touch /var/db/ConfigurationProfiles/Settings/.cloudConfigProfileInstalled
+            touch /var/db/ConfigurationProfiles/Settings/.cloudConfigRecordNotFound
             echo -e "${GRN}Notificaciones deshabilitadas exitosamente (SIP)${NC}"
             break
             ;;
@@ -115,7 +85,7 @@ select opt in "${options[@]}"; do
         "Verificar inscripción en MDM")
             # Verificar la inscripción en MDM
             echo -e "${GRN}Verificación de inscripción en MDM${NC}"
-            sudo profiles show -type enrollment
+            profiles show -type enrollment
             break
             ;;
 
@@ -134,3 +104,4 @@ select opt in "${options[@]}"; do
             ;;
     esac
 done
+
