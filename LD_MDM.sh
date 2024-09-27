@@ -186,7 +186,3 @@ EOF
             ;;
     esac
 done
-
-            ;;
-    esac
-done
